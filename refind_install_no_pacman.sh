@@ -1,24 +1,23 @@
 #!/bin/bash
-# A simple Steam Deck rEFInd automated install script
+# An alternate,  without pacman, rEFInd installation
+# Please make sure that a password exists for the deck user before running
 
-passwd --status deck | tee ~/deck_passwd_status.txt
-awk '{
-	if($2 =="P")
-    {
-		print "Password is already set.";
-	}
-    else
-    {
-		print "Password has not been set. Please set password for deck user now.";
-		system("passwd");
-	}
-}' ~/deck_passwd_status.txt
+CURRENT_WD=$(pwd)
+cd ~/Downloads
+wget https://sourceforge.net/projects/refind/files/0.13.3.1/refind-bin-gnuefi-0.13.3.1.zip
+unzip -a refind-bin-gnuefi-0.13.3.1.zip
 
 sudo steamos-readonly disable
-sudo pacman-key --init
-sudo pacman-key --populate archlinux
-yes | sudo pacman -S refind
-sudo refind-install
+sudo mkdir -p /esp/efi/refind
+yes | sudo cp ~/Downloads/refind-bin-0.13.3.1/refind/refind_x64.efi /esp/efi/refind/
+yes | sudo cp -rf ~/Downloads/refind-bin-0.13.3.1/refind/drivers_x64/ /esp/efi/refind
+yes | sudo cp -rf ~/Downloads/refind-bin-0.13.3.1/refind/tools_x64/ /esp/efi/refind
+yes | sudo ./refind-bin-0.13.3.1/refind-install
+yes | sudo cp -rf ~/Downloads/refind-bin-0.13.3.1/refind/icons/ /esp/efi/refind
+yes | sudo cp -rf ~/Downloads/refind-bin-0.13.3.1/fonts/ /esp/efi/refind
+yes | sudo cp $CURRENT_WD/refind.conf /esp/efi/refind/refind.conf
+yes | sudo cp -rf $CURRENT_WD/themes/ /esp/efi/refind
+yes | sudo cp -rf $CURRENT_WD/icons/ /esp/efi/refind
 
 efibootmgr | tee ~/efibootlist.txt
 WINDOWS_BOOTNUM="$(grep -A0 'Windows' ~/efibootlist.txt | grep -Eo '[0-9]{1,4}' | head -1)"
@@ -42,13 +41,7 @@ if ! [[ $STEAMOS_BOOTNUM =~ $re ]]; then
 	sudo efibootmgr -c -d /dev/nvme0n1 -p 1 -L "SteamOS" -l \\EFI\\steamos\\steamcl.efi
 fi
 
-yes | sudo cp -rf /boot/efi/EFI/refind/ /esp/efi
-# Renaming default rEFInd config file to keep for reference and backup
-sudo mv /esp/efi/refind/refind.conf /esp/efi/refind/refind-bkp.conf
-CURRENT_WD=$(pwd)
-yes | sudo cp $CURRENT_WD/refind.conf /esp/efi/refind/refind.conf
-yes | sudo cp -rf $CURRENT_WD/themes/ /esp/efi/refind
-yes | sudo cp -rf $CURRENT_WD/icons/ /esp/efi/refind
+# Manually adding rEFInd EFI boot entry
 sudo efibootmgr -c -d /dev/nvme0n1 -p 1 -L "rEFInd" -l \\EFI\\refind\\refind_x64.efi
 
 # Adding Systemctl daemon for rEFInd to be next boot priority
@@ -57,8 +50,7 @@ yes | sudo cp $CURRENT_WD/bootnext-refind.service /etc/systemd/system/bootnext-r
 sudo systemctl enable --now bootnext-refind.service
 
 # Clean up temporary files, created for code clarity
-yes | rm ~/deck_passwd_status.txt
 yes | rm ~/efibootlist.txt
 
 sudo steamos-readonly enable
-echo -e "\nrEFInd has now been installed (assuming pacman is functional)."
+echo -e "\nrEFInd has now been installed, without pacman."
